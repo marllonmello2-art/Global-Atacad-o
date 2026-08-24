@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.open-next
+.wrangler
+.env
+.env.local
+*.log
+.DS_Store
+next-env.d.ts
+.dev.vars

@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --brand: #0f766e;
+  --brand-dark: #115e59;
+  --brand-soft: #ecfdf5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f6f5;
+  color: #1f2937;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::placeholder {
+  color: #9ca3af;
+}
