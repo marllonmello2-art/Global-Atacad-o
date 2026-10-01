@@ -1415,10 +1415,36 @@ function saveKey(){
   updateKeyState();
 }
 
+// Timers simples resolvidos localmente: funcionam sem chave e sem custo
+const NUM_WORDS = { um:1, uma:1, dois:2, duas:2, tres:3, quatro:4, cinco:5, seis:6, sete:7, oito:8, nove:9, dez:10,
+  quinze:15, vinte:20, trinta:30, quarenta:40, cinquenta:50, sessenta:60, meia:0.5 };
+function localTimer(text){
+  const t = stripAccents(text);
+  if (!/\b(timer|temporizador|cronometro|contagem regressiva)\b/.test(t)) return false;
+  const m = t.match(/(\d+(?:[.,]\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|quinze|vinte|trinta|quarenta|cinquenta|sessenta|meia)\s*(segundos?|seg|s\b|minutos?|min|horas?|h\b)/);
+  if (!m) return false;
+  let n = NUM_WORDS[m[1]] != null ? NUM_WORDS[m[1]] : parseFloat(m[1].replace(",", "."));
+  if (!n) return false;
+  const unit = m[2];
+  const mins = /^s/.test(unit) ? n / 60 : /^h/.test(unit) ? n * 60 : n;
+  const plural = function(v, s, p){ return v + " " + (v === 1 ? s : p); };
+  const label = mins < 1 ? plural(Math.round(mins * 60), "segundo", "segundos")
+    : (mins >= 60 && mins % 60 === 0) ? plural(mins / 60, "hora", "horas")
+    : plural(Math.round(mins * 10) / 10, "minuto", "minutos");
+  runTool("criar_lembrete", { texto: "o timer de " + label + " terminou", em_minutos: mins });
+  $("recFilter").value = "lembretes"; renderRecs();
+  if (busy) stopSpeaking();
+  const my = ++reqToken;
+  setAwake(false); setBusy(true);
+  say("Timer de " + label + " iniciado, " + CONFIG.address + ".").then(function(){ if (my === reqToken) { setBusy(false); pumpAnnounce(); } });
+  return true;
+}
+
 function processCommand(text){
   text = text.trim();
   if (!text) return;
   $("youLine").textContent = text;
+  if (localTimer(text)) return;
   ask(text);
 }
 
@@ -1464,7 +1490,7 @@ async function ask(userText){
   setBusy(true);
   const key = getKey();
   if (!key) {
-    await say("Senhor, ainda não tenho minha chave de acesso. Por favor, cole sua API key da Anthropic no campo do topo e clique em salvar.");
+    await say("Senhor, ainda não tenho a chave de acesso neste aparelho. Cada celular ou computador guarda a sua; por favor, cole sua API key da Anthropic no campo do topo e toque em salvar.");
     $("apiKey").focus();
     setBusyOff();
     return;
