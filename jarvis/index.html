@@ -217,6 +217,37 @@ body.thinking .status .dot{background:var(--violet);box-shadow:0 0 10px var(--vi
   .line{font-size:14px}
   .legend .inj{margin-left:0;width:100%}
 }
+
+/* ═════════ FASE A: ações, respostas longas, registros ═════════ */
+.line.him #himLine{display:block;white-space:pre-wrap;max-height:42vh;overflow-y:auto}
+.actions{width:100%;max-width:760px;display:flex;flex-wrap:wrap;gap:8px}
+.actions:empty{display:none}
+.act{
+  display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+  padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;
+  color:#03121a;background:linear-gradient(90deg,var(--theme),#7dd3fc);
+  box-shadow:0 0 18px rgba(var(--theme-rgb),.35);
+}
+.act:hover{filter:brightness(1.1)}
+.recs{margin-top:18px;border:1px solid rgba(16,185,129,.35);border-radius:14px;background:rgba(6,18,20,.8);overflow:hidden}
+.recs-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(16,185,129,.22);flex-wrap:wrap}
+.recs-head .t{font-family:var(--mono);font-weight:800;letter-spacing:.18em;font-size:14px;color:#9ff0cf}
+.recs-head select{background:rgba(0,0,0,.4);border:1px solid rgba(16,185,129,.35);color:var(--text);border-radius:6px;padding:6px 8px;font-size:13px}
+.recs-head select option{background:#0a1122}
+.recs-head .sum{font-family:var(--mono);font-size:12px;color:#9ff0cf}
+.recs-head .right{margin-left:auto;display:flex;gap:8px}
+.recs-head .btn{color:#9ff0cf;border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08)}
+.rec-list{max-height:340px;overflow-y:auto;padding:6px 0}
+.rec{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.04);font-size:14px}
+.rec .tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;min-width:66px}
+.rec .txt{flex:1;min-width:0;overflow-wrap:anywhere}
+.rec.done .txt{text-decoration:line-through;color:var(--muted)}
+.rec .val{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.rec .dt{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.rec button{background:transparent;border:1px solid rgba(255,255,255,.12);color:var(--text);border-radius:6px;padding:3px 7px;font-size:12px}
+.rec button:hover{border-color:var(--theme)}
+.rec-empty{padding:16px 14px;color:var(--muted);font-size:13px}
+@media (max-width:600px){ .rec .tag{min-width:0} .recs-head .right{margin-left:0} }
 </style>
 </head>
 <body class="idle">
@@ -264,10 +295,12 @@ body.thinking .status .dot{background:var(--violet);box-shadow:0 0 10px var(--vi
       <div class="line you"><b>VOCÊ</b><span id="youLine">—</span></div>
       <div class="line him"><b id="himLabel">JARVIS</b><span id="himLine">—</span></div>
     </div>
+    <div class="actions" id="actions"></div>
     <div class="controls">
       <input id="textIn" type="text" placeholder="ou digite e tecle Enter" autocomplete="off">
       <button class="btn" id="btnMic">🎙 Microfone: ON</button>
       <button class="btn danger" id="btnStop">■ Interromper</button>
+      <button class="btn off" id="btnNew" title="Apagar o histórico da conversa">Nova conversa</button>
     </div>
   </section>
 
@@ -286,6 +319,24 @@ body.thinking .status .dot{background:var(--violet);box-shadow:0 0 10px var(--vi
     <div class="graph-wrap"><div id="graph"></div></div>
     <div class="legend" id="legend"></div>
   </section>
+
+  <section class="recs">
+    <div class="recs-head">
+      <span class="t">📒 REGISTROS</span>
+      <select id="recFilter">
+        <option value="tarefas">Tarefas pendentes</option>
+        <option value="financas">Finanças do mês</option>
+        <option value="saude">Saúde (peso e treinos)</option>
+        <option value="diario">Diário e ideias</option>
+        <option value="compras">Lista de compras</option>
+        <option value="lembretes">Lembretes</option>
+        <option value="tudo">Tudo</option>
+      </select>
+      <span class="sum" id="recSum"></span>
+      <div class="right"><button class="btn" id="btnCsv">Exportar planilha</button></div>
+    </div>
+    <div class="rec-list" id="recList"></div>
+  </section>
 </main>
 
 <!-- MODAL — editor de nota -->
@@ -298,6 +349,8 @@ body.thinking .status .dot{background:var(--violet);box-shadow:0 0 10px var(--vi
     <select id="fArea"></select>
     <label for="fBody">CONTEÚDO</label>
     <textarea id="fBody"></textarea>
+    <label for="fPhone">TELEFONE / WHATSAPP (OPCIONAL)</label>
+    <input id="fPhone" inputmode="tel" placeholder="(21) 99999-9999">
     <div class="row">
       <button class="btn danger" id="fDelete">Excluir</button>
       <span class="spacer"></span>
@@ -347,20 +400,30 @@ const AREA = {
 };
 
 // VERSÃO LIMPA: nenhuma informação pessoal fica no código publicado.
-// As notas e conexões chegam pelo "código de memória" (link #m=... ou botão Importar)
-// e ficam guardadas somente no navegador (localStorage "jarvis_notes" / "jarvis_rel").
+// Notas, conexões, registros e lembretes chegam pelo "código de memória"
+// (link #m=... ou botão Importar) e ficam guardados somente no navegador.
 const NOTES = [];
 
 const REL = [];
+
+const REC_TYPES = ["gasto","receita","tarefa","diario","peso","treino","ideia","compra"];
+const REC_LABEL = { gasto:"Gasto", receita:"Receita", tarefa:"Tarefa", diario:"Diário", peso:"Peso", treino:"Treino", ideia:"Ideia", compra:"Compra" };
+const REC_COLOR = { gasto:"#ff5547", receita:"#10b981", tarefa:"#fbbf24", diario:"#8b7cff", peso:"#2dd4ff", treino:"#10b981", ideia:"#ec4899", compra:"#f7931a" };
+const MAX_TOKENS = 1500;
+const TZ = (function(){ try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Sao_Paulo"; } catch(e){ return "America/Sao_Paulo"; } })();
 
 /* ═══════════════════ UTILIDADES ═══════════════════ */
 const $ = (id) => document.getElementById(id);
 const store = {
   get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
-  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} }
 };
+function loadJSON(k, fallback){
+  try { const v = JSON.parse(store.get(k) || "null"); return v == null ? fallback : v; } catch(e){ return fallback; }
+}
 function stripAccents(s){
-  return s.split("").map(function(c){
+  return String(s).split("").map(function(c){
     const n = c.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
     return n.length === 1 ? n : c.toLowerCase();
   }).join("");
@@ -370,50 +433,80 @@ function esc(s){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
   });
 }
-function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+function pad(n){ return (n < 10 ? "0" : "") + n; }
+function ymd(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
+function todayStr(){ return ymd(new Date()); }
+function fmtDate(s){ if (!s) return ""; const p = s.split("-"); return p.length === 3 ? p[2] + "/" + p[1] : s; }
+function fmtDateTime(ms){ const d = new Date(ms); return pad(d.getDate()) + "/" + pad(d.getMonth()+1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function brl(v){ return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+function uid(p){ return (p || "n") + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
 
-/* ═══════════════════ ESTADO DAS NOTAS ═══════════════════ */
+/* ═══════════════════ ESTADO PERSISTENTE ═══════════════════ */
 let notes = loadNotes();
 let rel = loadRel();
+let records = loadJSON("jarvis_records", []);
+let reminders = loadJSON("jarvis_reminders", []);
+let chatHistory = loadJSON("jarvis_history", []);
+
 function loadRel(){
-  try {
-    const arr = JSON.parse(store.get("jarvis_rel") || "null");
-    if (Array.isArray(arr)) return arr.filter(function(p){ return Array.isArray(p) && p.length === 2; });
-  } catch(e){}
+  const arr = loadJSON("jarvis_rel", null);
+  if (Array.isArray(arr)) return arr.filter(function(p){ return Array.isArray(p) && p.length === 2; });
   return REL.slice();
 }
-function saveRel(){ store.set("jarvis_rel", JSON.stringify(rel)); }
 function loadNotes(){
-  const raw = store.get("jarvis_notes");
-  if (raw) {
-    try {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) return arr.filter(function(n){ return n && n.id && n.title; });
-    } catch(e){}
-  }
+  const arr = loadJSON("jarvis_notes", null);
+  if (Array.isArray(arr)) return arr.filter(function(n){ return n && n.id && n.title; });
   const copy = NOTES.map(function(n){ return Object.assign({}, n); });
   store.set("jarvis_notes", JSON.stringify(copy));
   return copy;
 }
 function saveNotes(){ store.set("jarvis_notes", JSON.stringify(notes)); }
+function saveRel(){ store.set("jarvis_rel", JSON.stringify(rel)); }
+function saveRecords(){ store.set("jarvis_records", JSON.stringify(records)); renderRecs(); }
+function saveReminders(){ store.set("jarvis_reminders", JSON.stringify(reminders)); renderRecs(); }
+function saveHistory(){ store.set("jarvis_history", JSON.stringify(chatHistory)); }
 function findByTitle(title){
   const t = stripAccents(title.trim());
   return notes.find(function(n){ return stripAccents(n.title.trim()) === t; });
 }
-function newId(){ return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+function newId(){ return uid("n"); }
 
 /* ═══════════════════ SYSTEM PROMPT ═══════════════════ */
-function buildSystemPrompt(){
-  const identity =
-    "Você é " + CONFIG.name + ", o assistente pessoal de voz do usuário. Sua personalidade é de um mordomo britânico formal: " +
-    "educado, elegante, leal, preciso e com um humor seco e sutil. Trate o usuário SEMPRE por \"" + CONFIG.address + "\". " +
-    "Você conhece profundamente a vida dele pelo Second Brain abaixo e usa esse contexto para personalizar cada resposta, " +
-    "conectando conselhos às metas, projetos, finanças, saúde e relações dele quando fizer sentido. " +
-    "Em temas sensíveis da vida pessoal, seja respeitoso, discreto e acolhedor.";
-  const rules =
-    "REGRAS DE RESPOSTA: responda sempre em português do Brasil, em 2 a 4 frases curtas, naturais para serem FALADAS em voz alta. " +
-    "Nunca use emojis, markdown, asteriscos, listas, títulos ou símbolos especiais. Seja direto e útil. " +
-    "Data e hora atuais: " + new Date().toLocaleString("pt-BR") + ".";
+// Parte fixa (vai para o cache de prompt) + parte dinâmica (data, Second Brain, estado).
+const STATIC_PROMPT = [
+  "Você é " + CONFIG.name + ", o assistente pessoal de voz do usuário. Sua personalidade é de um mordomo britânico formal: " +
+  "educado, elegante, leal, preciso e com um humor seco e sutil. Trate o usuário SEMPRE por \"" + CONFIG.address + "\". " +
+  "Você conhece profundamente a vida dele pelo Second Brain (na parte dinâmica) e usa esse contexto para personalizar cada resposta, " +
+  "conectando conselhos às metas, projetos, finanças, saúde e relações dele quando fizer sentido. " +
+  "Em temas sensíveis da vida pessoal, seja respeitoso, discreto e acolhedor.",
+
+  "COMO RESPONDER: sempre em português do Brasil, em texto natural para ser FALADO em voz alta. " +
+  "Padrão: 2 a 4 frases curtas. Nunca use emojis, markdown, asteriscos, títulos, tabelas nem símbolos especiais; não leia links em voz alta. " +
+  "MODO DETALHADO: se o usuário pedir detalhes, explicação completa, plano, roteiro, rotina, estudo, texto, lista ou passo a passo, " +
+  "responda completo (até cerca de 350 palavras), em parágrafos curtos ou itens numerados por extenso com quebras de linha; " +
+  "o aplicativo lê só o começo em voz alta e mostra o restante na tela, então comece pelo essencial. " +
+  "BRIEFING: quando ele disser bom dia, boa tarde, boa noite ou pedir o resumo do dia, pesquise o clima de hoje na cidade dele, " +
+  "depois cite as tarefas pendentes e os lembretes de hoje, sugira um foco ligado às metas e dê uma dica curta de saúde (até 7 frases).",
+
+  "FERRAMENTAS (use sem pedir permissão quando o pedido for claro):\n" +
+  "- web_search e web_fetch: use SEMPRE que a resposta depender de informação atual ou verificável: clima, notícias, cotações, preços, resultados, horários, datas de vestibular, eventos, leis. Nunca invente dados atuais.\n" +
+  "- registrar: quando ele pedir para anotar ou registrar gastos, receitas, tarefas, diário, peso, treinos, ideias ou itens de compra. Valores em reais. Data padrão: hoje.\n" +
+  "- consultar_registros: para perguntas como quanto gastei, o que falta fazer, como está meu peso, minhas ideias. Some e resuma, falando valores em reais.\n" +
+  "- atualizar_registro: concluir, reabrir ou excluir um registro pelo id (os ids aparecem no estado atual ou na consulta).\n" +
+  "- criar_lembrete e gerenciar_lembretes: lembretes, alarmes e timers. Calcule o horário a partir da data e hora atuais e confirme o horário em voz. Os lembretes só tocam enquanto o " + CONFIG.name + " estiver aberto.\n" +
+  "- abrir_app: WhatsApp (mensagem pronta), Google Agenda (evento), Gmail (e-mail), Google Maps (rota), YouTube, Spotify, Shopee ou um link. Diga que deixou pronto e que ele só precisa confirmar com um toque. Para WhatsApp, se o contato não tiver telefone salvo, peça o número.\n" +
+  "- salvar_telefone: guarda o telefone de um contato para mensagens futuras.\n" +
+  "Depois de usar ferramentas, responda curto confirmando o que foi feito ou trazendo a informação pedida.",
+
+  "PROTOCOLO DE MEMÓRIA VIVA: Se o usuário revelar algo novo e duradouro, TERMINE a resposta com uma linha no formato EXATO " +
+  "[[SAVE:area|titulo|texto]] (area ∈ metas, trabalho, projetos, financas, aprendizado, saude, relacoes, meta). " +
+  "Se já existir nota com esse título, ela é atualizada; senão nasce uma nova. Inclua só quando houver algo realmente novo. " +
+  "Ao atualizar uma nota existente, reescreva o texto completo dela já incorporando a novidade. " +
+  "Use [[SAVE]] para fatos duradouros sobre a vida dele; use a ferramenta registrar para eventos do dia a dia (um gasto, um treino, o peso de hoje). " +
+  "Nunca mencione esse protocolo nem leia a linha em voz alta."
+].join("\n\n");
+
+function brainText(){
   const groups = {};
   notes.forEach(function(n){ (groups[n.area] = groups[n.area] || []).push(n); });
   let brain = "SECOND BRAIN (contexto completo e atualizado da vida do usuário):\n";
@@ -423,13 +516,364 @@ function buildSystemPrompt(){
     brain += "\n## " + AREA[a].label + " (" + a + ")\n";
     groups[a].forEach(function(n){ brain += "- " + n.title + ": " + n.body + "\n"; });
   });
-  const memory =
-    "PROTOCOLO DE MEMÓRIA VIVA: Se o usuário revelar algo novo e duradouro, TERMINE a resposta com uma linha no formato EXATO " +
-    "[[SAVE:area|titulo|texto]] (area ∈ metas, trabalho, projetos, financas, aprendizado, saude, relacoes, meta). " +
-    "Se já existir nota com esse título, ela é atualizada; senão nasce uma nova. Inclua só quando houver algo realmente novo. " +
-    "Ao atualizar uma nota existente, reescreva o texto completo dela já incorporando a novidade. " +
-    "Nunca mencione esse protocolo nem leia a linha em voz alta.";
-  return identity + "\n\n" + rules + "\n\n" + brain + "\n" + memory;
+  return brain;
+}
+function stateText(){
+  const now = new Date();
+  const ym = todayStr().slice(0,7);
+  let s = "ESTADO ATUAL\n";
+  const pend = records.filter(function(r){ return r.tipo === "tarefa" && !r.feito; }).slice(-15);
+  s += "Tarefas pendentes: " + (pend.length ? "\n" + pend.map(function(r){ return "- [" + r.id + "] " + r.texto + (r.prazo ? " (prazo " + fmtDate(r.prazo) + ")" : ""); }).join("\n") : "nenhuma") + "\n";
+  const rems = reminders.filter(function(r){ return !r.done; }).sort(function(a,b){ return a.due - b.due; }).slice(0,10);
+  s += "Lembretes ativos: " + (rems.length ? "\n" + rems.map(function(r){ return "- [" + r.id + "] " + fmtDateTime(r.due) + " " + r.texto + (r.repeat ? " (repete a cada " + r.repeat + " min)" : ""); }).join("\n") : "nenhum") + "\n";
+  const mes = records.filter(function(r){ return (r.data || "").slice(0,7) === ym; });
+  const g = mes.filter(function(r){ return r.tipo === "gasto"; }).reduce(function(t,r){ return t + (Number(r.valor) || 0); }, 0);
+  const rc = mes.filter(function(r){ return r.tipo === "receita"; }).reduce(function(t,r){ return t + (Number(r.valor) || 0); }, 0);
+  s += "Finanças do mês: gastos " + brl(g) + ", receitas " + brl(rc) + ".\n";
+  const pesos = records.filter(function(r){ return r.tipo === "peso" && r.valor; });
+  if (pesos.length) { const p = pesos[pesos.length-1]; s += "Último peso registrado: " + p.valor + " kg em " + fmtDate(p.data) + ".\n"; }
+  const comTel = notes.filter(function(n){ return n.phone; }).map(function(n){ return n.title; });
+  s += "Contatos com WhatsApp salvo: " + (comTel.length ? comTel.join(", ") : "nenhum") + ".\n";
+  s += "Total de registros: " + records.length + ".";
+  return s;
+}
+function dynamicPrompt(){
+  const now = new Date();
+  return "Data e hora atuais: " + now.toLocaleString("pt-BR", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) +
+    " (ISO local " + ymd(now) + "T" + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ", fuso " + TZ + ").\n\n" +
+    brainText() + "\n" + stateText();
+}
+function buildSystemPrompt(){ return STATIC_PROMPT + "\n\n" + dynamicPrompt(); }
+
+/* ═══════════════════ FERRAMENTAS (definições) ═══════════════════ */
+let webOn = true; // se a conta não tiver pesquisa web, desliga só nesta sessão
+let webWarn = false;
+const CLIENT_TOOLS = [
+  { name: "registrar",
+    description: "Registra algo que o usuário pediu para anotar: gasto, receita, tarefa, diário, peso, treino, ideia ou item de compra.",
+    input_schema: { type: "object", properties: {
+      tipo: { type: "string", enum: REC_TYPES },
+      texto: { type: "string", description: "Descrição curta do registro" },
+      valor: { type: "number", description: "Valor em reais (gasto/receita) ou peso em kg" },
+      categoria: { type: "string", description: "Categoria, ex.: mercado, transporte, igreja, Shopee, lazer, contas" },
+      data: { type: "string", description: "Data YYYY-MM-DD (padrão: hoje)" },
+      prazo: { type: "string", description: "Para tarefas: data limite YYYY-MM-DD" }
+    }, required: ["tipo","texto"] } },
+  { name: "consultar_registros",
+    description: "Consulta os registros salvos com filtros e devolve itens, soma dos valores e totais por categoria.",
+    input_schema: { type: "object", properties: {
+      tipo: { type: "string", enum: REC_TYPES.concat(["todos"]) },
+      periodo: { type: "string", enum: ["hoje","semana","mes","mes_passado","ano","tudo"] },
+      apenas_pendentes: { type: "boolean", description: "Para tarefas: só as não concluídas" },
+      busca: { type: "string", description: "Texto para filtrar" }
+    }, required: [] } },
+  { name: "atualizar_registro",
+    description: "Conclui, reabre ou exclui um registro pelo id.",
+    input_schema: { type: "object", properties: {
+      id: { type: "string" },
+      acao: { type: "string", enum: ["concluir","reabrir","excluir"] }
+    }, required: ["id","acao"] } },
+  { name: "criar_lembrete",
+    description: "Cria um lembrete, alarme ou timer. Informe 'quando' (data e hora local) OU 'em_minutos'.",
+    input_schema: { type: "object", properties: {
+      texto: { type: "string", description: "O que lembrar" },
+      quando: { type: "string", description: "Data e hora local no formato YYYY-MM-DDTHH:MM" },
+      em_minutos: { type: "number", description: "Daqui a quantos minutos (para timers)" },
+      repetir_a_cada_minutos: { type: "number", description: "Repetição em minutos (ex.: 60 para a cada hora)" }
+    }, required: ["texto"] } },
+  { name: "gerenciar_lembretes",
+    description: "Lista os lembretes ativos ou cancela um pelo id.",
+    input_schema: { type: "object", properties: {
+      acao: { type: "string", enum: ["listar","cancelar"] },
+      id: { type: "string" }
+    }, required: ["acao"] } },
+  { name: "abrir_app",
+    description: "Prepara e abre um aplicativo já preenchido: whatsapp (contato/telefone + mensagem), agenda (evento no Google Agenda), gmail (e-mail), maps (rota), youtube, spotify, shopee ou link.",
+    input_schema: { type: "object", properties: {
+      app: { type: "string", enum: ["whatsapp","agenda","gmail","maps","youtube","spotify","shopee","link"] },
+      contato: { type: "string", description: "Nome do contato (WhatsApp)" },
+      telefone: { type: "string", description: "Telefone, se informado pelo usuário" },
+      mensagem: { type: "string", description: "Texto da mensagem (WhatsApp) ou corpo do e-mail" },
+      para: { type: "string", description: "E-mail do destinatário (Gmail)" },
+      assunto: { type: "string", description: "Assunto do e-mail" },
+      titulo: { type: "string", description: "Título do evento (Agenda)" },
+      inicio: { type: "string", description: "Início do evento YYYY-MM-DDTHH:MM (ou YYYY-MM-DD para dia inteiro)" },
+      fim: { type: "string", description: "Fim do evento YYYY-MM-DDTHH:MM (opcional)" },
+      local: { type: "string", description: "Local do evento ou destino da rota" },
+      detalhes: { type: "string", description: "Descrição do evento" },
+      busca: { type: "string", description: "O que buscar/tocar (YouTube, Spotify)" },
+      url: { type: "string", description: "Link https para abrir (app=link)" }
+    }, required: ["app"] } },
+  { name: "salvar_telefone",
+    description: "Salva o telefone (WhatsApp) de um contato do usuário.",
+    input_schema: { type: "object", properties: {
+      nome: { type: "string" },
+      telefone: { type: "string" }
+    }, required: ["nome","telefone"] } }
+];
+function toolList(){
+  const t = CLIENT_TOOLS.slice();
+  if (webOn) {
+    t.push({ type: "web_search_20260209", name: "web_search", max_uses: 3,
+             user_location: { type: "approximate", country: "BR", timezone: TZ } });
+    t.push({ type: "web_fetch_20260209", name: "web_fetch", max_uses: 2 });
+  }
+  return t;
+}
+
+/* ═══════════════════ FERRAMENTAS (execução) ═══════════════════ */
+function periodMatch(dataStr, periodo){
+  if (!periodo || periodo === "tudo") return true;
+  if (!dataStr) return false;
+  const now = new Date(), d = new Date(dataStr + "T12:00");
+  if (periodo === "hoje") return dataStr === todayStr();
+  if (periodo === "semana") return (now - d) <= 7 * 86400000 && d <= now;
+  if (periodo === "mes") return dataStr.slice(0,7) === todayStr().slice(0,7);
+  if (periodo === "mes_passado") { const p = new Date(now.getFullYear(), now.getMonth() - 1, 1); return dataStr.slice(0,7) === ymd(p).slice(0,7); }
+  if (periodo === "ano") return dataStr.slice(0,4) === String(now.getFullYear());
+  return true;
+}
+function findContact(name){
+  const q = stripAccents(String(name || "").trim());
+  if (!q) return null;
+  const list = notes.filter(function(n){ const t = stripAccents(n.title); return t === q || t.indexOf(q) >= 0 || q.indexOf(t) >= 0; });
+  return list.find(function(n){ return n.phone; }) || list.find(function(n){ return n.area === "relacoes"; }) || list[0] || null;
+}
+function normPhone(p){
+  let d = String(p || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.length === 10 || d.length === 11) d = "55" + d;
+  return d;
+}
+function gcalFmt(s, addHours){
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    if (addHours) { const d = new Date(s + "T12:00"); d.setDate(d.getDate() + 1); return ymd(d).replace(/-/g, ""); }
+    return s.replace(/-/g, "");
+  }
+  const d = new Date(s);
+  if (isNaN(d)) return "";
+  if (addHours) d.setHours(d.getHours() + addHours);
+  return ymd(d).replace(/-/g, "") + "T" + pad(d.getHours()) + pad(d.getMinutes()) + "00";
+}
+function addAction(label, url){
+  const box = $("actions");
+  const a = document.createElement("a");
+  a.className = "act"; a.href = url; a.target = "_blank"; a.rel = "noopener";
+  a.textContent = "▶ " + label;
+  box.insertBefore(a, box.firstChild);
+  while (box.children.length > 3) box.removeChild(box.lastChild);
+}
+function openApp(inp){
+  const e = encodeURIComponent;
+  let url = "", label = "";
+  switch (inp.app) {
+    case "whatsapp": {
+      const c = findContact(inp.contato);
+      const phone = normPhone(inp.telefone || (c && c.phone));
+      if (inp.telefone && c && !c.phone) { c.phone = inp.telefone; saveNotes(); }
+      url = phone ? "https://wa.me/" + phone + "?text=" + e(inp.mensagem || "") : "https://wa.me/?text=" + e(inp.mensagem || "");
+      label = "Abrir WhatsApp" + (inp.contato ? " · " + inp.contato : "");
+      if (!phone) { addAction(label + " (escolher contato)", url); return { ok: true, aviso: "Contato sem telefone salvo: o WhatsApp vai abrir para ele escolher o contato. Peça o número para salvar." }; }
+      break;
+    }
+    case "agenda": {
+      const ini = gcalFmt(inp.inicio, 0);
+      const fim = inp.fim ? gcalFmt(inp.fim, 0) : gcalFmt(inp.inicio, /^\d{4}-\d{2}-\d{2}$/.test(inp.inicio || "") ? 24 : 1);
+      url = "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + e(inp.titulo || "Evento") +
+        (ini ? "&dates=" + ini + "/" + fim : "") + "&details=" + e(inp.detalhes || "") + "&location=" + e(inp.local || "") + "&ctz=" + e(TZ);
+      label = "Criar evento na Agenda" + (inp.titulo ? " · " + inp.titulo : "");
+      break;
+    }
+    case "gmail":
+      url = "https://mail.google.com/mail/?view=cm&fs=1&to=" + e(inp.para || "") + "&su=" + e(inp.assunto || "") + "&body=" + e(inp.mensagem || "");
+      label = "Abrir e-mail no Gmail"; break;
+    case "maps":
+      url = "https://www.google.com/maps/dir/?api=1&destination=" + e(inp.local || inp.busca || "");
+      label = "Rota no Google Maps" + (inp.local ? " · " + inp.local : ""); break;
+    case "youtube":
+      url = "https://www.youtube.com/results?search_query=" + e(inp.busca || "");
+      label = "YouTube · " + (inp.busca || ""); break;
+    case "spotify":
+      url = "https://open.spotify.com/search/" + e(inp.busca || "");
+      label = "Spotify · " + (inp.busca || ""); break;
+    case "shopee":
+      url = "https://seller.shopee.com.br/"; label = "Abrir Shopee Seller"; break;
+    case "link":
+      if (!/^https?:\/\//i.test(inp.url || "")) return { ok: false, erro: "link inválido" };
+      url = inp.url; label = "Abrir link"; break;
+    default:
+      return { ok: false, erro: "app desconhecido" };
+  }
+  addAction(label, url);
+  let opened = null;
+  try { opened = window.open(url, "_blank", "noopener"); } catch(err){}
+  return { ok: true, aberto_automaticamente: !!opened, info: "Botão para abrir exibido na tela." };
+}
+function runTool(name, inp){
+  inp = inp || {};
+  if (name === "registrar") {
+    const tipo = REC_TYPES.indexOf(inp.tipo) >= 0 ? inp.tipo : "diario";
+    const r = { id: uid("r"), tipo: tipo, texto: String(inp.texto || "").slice(0, 300),
+      valor: (inp.valor === 0 || inp.valor) ? Number(inp.valor) : null,
+      categoria: inp.categoria || "", data: /^\d{4}-\d{2}-\d{2}$/.test(inp.data || "") ? inp.data : todayStr(),
+      prazo: inp.prazo || "", feito: false, criado: Date.now() };
+    records.push(r); saveRecords();
+    if (tipo === "tarefa") $("recFilter").value = "tarefas";
+    else if (tipo === "gasto" || tipo === "receita") $("recFilter").value = "financas";
+    else if (tipo === "peso" || tipo === "treino") $("recFilter").value = "saude";
+    else if (tipo === "compra") $("recFilter").value = "compras";
+    else $("recFilter").value = "diario";
+    renderRecs();
+    return { ok: true, id: r.id, registrado: r };
+  }
+  if (name === "consultar_registros") {
+    const busca = stripAccents(inp.busca || "");
+    let list = records.filter(function(r){
+      if (inp.tipo && inp.tipo !== "todos" && r.tipo !== inp.tipo) return false;
+      if (inp.apenas_pendentes && r.feito) return false;
+      if (!periodMatch(r.data, inp.periodo || "tudo")) return false;
+      if (busca && stripAccents(r.texto + " " + r.categoria).indexOf(busca) < 0) return false;
+      return true;
+    });
+    const soma = list.reduce(function(t,r){ return t + (Number(r.valor) || 0); }, 0);
+    const porCat = {};
+    list.forEach(function(r){ if (r.valor) { const k = r.categoria || "sem categoria"; porCat[k] = (porCat[k] || 0) + Number(r.valor); } });
+    return { total_itens: list.length, soma_valores: Math.round(soma * 100) / 100, por_categoria: porCat,
+      itens: list.slice(-60).map(function(r){ return { id: r.id, tipo: r.tipo, texto: r.texto, valor: r.valor, categoria: r.categoria, data: r.data, prazo: r.prazo, feito: r.feito }; }) };
+  }
+  if (name === "atualizar_registro") {
+    const r = records.find(function(x){ return x.id === inp.id; });
+    if (!r) return { ok: false, erro: "registro não encontrado" };
+    if (inp.acao === "excluir") records = records.filter(function(x){ return x.id !== inp.id; });
+    else r.feito = inp.acao === "concluir";
+    saveRecords();
+    return { ok: true };
+  }
+  if (name === "criar_lembrete") {
+    let due = NaN;
+    if (inp.em_minutos || inp.em_minutos === 0) due = Date.now() + Number(inp.em_minutos) * 60000;
+    else if (inp.quando) due = new Date(inp.quando).getTime();
+    if (isNaN(due)) return { ok: false, erro: "horário inválido" };
+    const r = { id: uid("l"), texto: String(inp.texto || "Lembrete"), due: due, repeat: Number(inp.repetir_a_cada_minutos) || 0, done: false };
+    reminders.push(r); saveReminders();
+    askNotifyPermission();
+    return { ok: true, id: r.id, quando: fmtDateTime(due) };
+  }
+  if (name === "gerenciar_lembretes") {
+    if (inp.acao === "cancelar") {
+      const r = reminders.find(function(x){ return x.id === inp.id; });
+      if (!r) return { ok: false, erro: "lembrete não encontrado" };
+      reminders = reminders.filter(function(x){ return x.id !== inp.id; }); saveReminders();
+      return { ok: true };
+    }
+    return { lembretes: reminders.filter(function(r){ return !r.done; }).map(function(r){ return { id: r.id, texto: r.texto, quando: fmtDateTime(r.due), repete_min: r.repeat }; }) };
+  }
+  if (name === "abrir_app") return openApp(inp);
+  if (name === "salvar_telefone") {
+    let c = findContact(inp.nome);
+    if (!c) { c = { id: newId(), area: "relacoes", title: String(inp.nome).slice(0, 40), body: "Contato do usuário." }; notes.push(c); }
+    c.phone = String(inp.telefone);
+    saveNotes(); renderBrain(c.id);
+    return { ok: true, contato: c.title };
+  }
+  return { ok: false, erro: "ferramenta desconhecida" };
+}
+const TOOL_STATUS = { registrar: "Registrando...", consultar_registros: "Consultando registros...", atualizar_registro: "Atualizando...",
+  criar_lembrete: "Criando lembrete...", gerenciar_lembretes: "Verificando lembretes...", abrir_app: "Preparando aplicativo...", salvar_telefone: "Salvando contato..." };
+
+/* ═══════════════════ REGISTROS (painel) ═══════════════════ */
+function renderRecs(){
+  const f = $("recFilter").value;
+  const ym = todayStr().slice(0,7);
+  let list = [], sum = "";
+  if (f === "lembretes") {
+    const rs = reminders.filter(function(r){ return !r.done; }).sort(function(a,b){ return a.due - b.due; });
+    $("recSum").textContent = rs.length + " ativo(s)";
+    $("recList").innerHTML = rs.length ? rs.map(function(r){
+      return '<div class="rec"><span class="tag" style="color:#2dd4ff">Lembrete</span><span class="txt">' + esc(r.texto) + (r.repeat ? ' <span class="dt">(a cada ' + r.repeat + ' min)</span>' : '') +
+        '</span><span class="dt">' + fmtDateTime(r.due) + '</span><button data-rem="' + esc(r.id) + '" title="Cancelar">🗑</button></div>';
+    }).join("") : '<div class="rec-empty">Nenhum lembrete. Diga: "me lembra às 18h de pagar a conta".</div>';
+    return;
+  }
+  if (f === "tarefas") list = records.filter(function(r){ return r.tipo === "tarefa" && !r.feito; });
+  else if (f === "financas") {
+    list = records.filter(function(r){ return (r.tipo === "gasto" || r.tipo === "receita") && (r.data || "").slice(0,7) === ym; });
+    const g = list.filter(function(r){ return r.tipo === "gasto"; }).reduce(function(t,r){ return t + (Number(r.valor) || 0); }, 0);
+    const rc = list.filter(function(r){ return r.tipo === "receita"; }).reduce(function(t,r){ return t + (Number(r.valor) || 0); }, 0);
+    sum = "gastos " + brl(g) + " · receitas " + brl(rc) + " · saldo " + brl(rc - g);
+  }
+  else if (f === "saude") list = records.filter(function(r){ return r.tipo === "peso" || r.tipo === "treino"; });
+  else if (f === "diario") list = records.filter(function(r){ return r.tipo === "diario" || r.tipo === "ideia"; });
+  else if (f === "compras") list = records.filter(function(r){ return r.tipo === "compra" && !r.feito; });
+  else list = records.slice();
+  $("recSum").textContent = sum || (list.length + " item(ns)");
+  list = list.slice().sort(function(a,b){ return (b.data || "").localeCompare(a.data || "") || (b.criado - a.criado); });
+  $("recList").innerHTML = list.length ? list.slice(0, 200).map(function(r){
+    const val = r.valor == null ? "" : (r.tipo === "peso" ? r.valor + " kg" : brl(r.valor));
+    const canCheck = r.tipo === "tarefa" || r.tipo === "compra";
+    return '<div class="rec' + (r.feito ? ' done' : '') + '"><span class="tag" style="color:' + REC_COLOR[r.tipo] + '">' + REC_LABEL[r.tipo] + '</span>' +
+      '<span class="txt">' + esc(r.texto) + (r.categoria ? ' <span class="dt">· ' + esc(r.categoria) + '</span>' : '') + (r.prazo ? ' <span class="dt">· prazo ' + fmtDate(r.prazo) + '</span>' : '') + '</span>' +
+      (val ? '<span class="val">' + val + '</span>' : '') + '<span class="dt">' + fmtDate(r.data) + '</span>' +
+      (canCheck ? '<button data-done="' + esc(r.id) + '" title="Concluir">✓</button>' : '') +
+      '<button data-del="' + esc(r.id) + '" title="Excluir">🗑</button></div>';
+  }).join("") : '<div class="rec-empty">Nada aqui ainda. Diga, por exemplo: "anota que gastei 45 reais no mercado" ou "adiciona tarefa: ligar para o pastor".</div>';
+}
+function recsClick(e){
+  const t = e.target;
+  if (t.getAttribute("data-done")) { const r = records.find(function(x){ return x.id === t.getAttribute("data-done"); }); if (r) { r.feito = !r.feito; saveRecords(); } }
+  else if (t.getAttribute("data-del")) { if (confirm("Excluir este registro?")) { records = records.filter(function(x){ return x.id !== t.getAttribute("data-del"); }); saveRecords(); } }
+  else if (t.getAttribute("data-rem")) { reminders = reminders.filter(function(x){ return x.id !== t.getAttribute("data-rem"); }); saveReminders(); }
+}
+function exportCsv(){
+  const q = function(v){ return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"'; };
+  const rows = [["data","tipo","texto","valor","categoria","prazo","concluido"].join(";")];
+  records.forEach(function(r){
+    rows.push([q(r.data), q(REC_LABEL[r.tipo]), q(r.texto), q(r.valor == null ? "" : String(r.valor).replace(".", ",")), q(r.categoria), q(r.prazo), q(r.feito ? "sim" : "")].join(";"));
+  });
+  const blob = new Blob(["﻿" + rows.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "jarvis-registros-" + todayStr() + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+}
+
+/* ═══════════════════ LEMBRETES (motor) ═══════════════════ */
+let appStarted = false;
+const announceQ = [];
+function askNotifyPermission(){
+  try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch(e){}
+}
+function notify(text){
+  try { if ("Notification" in window && Notification.permission === "granted") new Notification(CONFIG.name, { body: text }); } catch(e){}
+}
+function checkReminders(){
+  if (!appStarted) return;
+  const now = Date.now();
+  let changed = false;
+  reminders.forEach(function(r){
+    if (r.done || r.due > now) return;
+    const late = now - r.due > 3 * 60000;
+    const msg = (late ? CONFIG.address.charAt(0).toUpperCase() + CONFIG.address.slice(1) + ", lembrete atrasado de " + fmtDateTime(r.due) + ": " : cap(CONFIG.address) + ", lembrete: ") + r.texto + ".";
+    announceQ.push(msg); notify(r.texto);
+    if (r.repeat > 0) { while (r.due <= now) r.due += r.repeat * 60000; }
+    else r.done = true;
+    changed = true;
+  });
+  if (changed) {
+    reminders = reminders.filter(function(r){ return !r.done || (now - r.due) < 86400000; });
+    saveReminders();
+    beep(); setTimeout(beep, 300); setTimeout(beep, 600);
+    pumpAnnounce();
+  }
+}
+function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+function pumpAnnounce(){
+  if (busy || !announceQ.length || !appStarted) return;
+  const msg = announceQ.shift();
+  const my = ++reqToken;
+  setBusy(true);
+  say(msg).then(function(){ if (my === reqToken) { setBusy(false); pumpAnnounce(); } });
 }
 
 /* ═══════════════════ GRAFO NEURAL (SVG via innerHTML de DIV) ═══════════════════ */
@@ -450,13 +894,13 @@ function computeEdges(){
     seen.add(k); out.push([a,b]);
   }
   rel.forEach(function(p){ add(p[0], p[1]); });
-  // notas novas (fora do REL): liga à 1ª nota da mesma área e ao hub de metas
   const linked = new Set(), degree = {};
   out.forEach(function(p){ linked.add(p[0]); linked.add(p[1]); degree[p[0]] = (degree[p[0]]||0)+1; degree[p[1]] = (degree[p[1]]||0)+1; });
   // hub = nota mais conectada (ou a 1ª nota de metas)
   let hub = null, best = -1;
   Object.keys(degree).forEach(function(id){ if (degree[id] > best) { best = degree[id]; hub = id; } });
   if (!hub) { const m = notes.find(function(n){ return n.area === "metas"; }) || notes[0]; hub = m ? m.id : null; }
+  // notas novas (fora das conexões): liga à 1ª nota da mesma área e ao hub
   notes.forEach(function(n){
     if (linked.has(n.id)) return;
     const peer = notes.find(function(m){ return m.area === n.area && m.id !== n.id; });
@@ -554,7 +998,6 @@ function renderBrain(flashId){
   pulseEls = Array.prototype.slice.call(container.querySelectorAll("#pulses circle"));
   pulses = pulseEls.map(function(){ return newPulse(true); });
 
-  // contador + legenda
   const areasPresent = Object.keys(AREA).filter(function(a){ return notes.some(function(n){ return n.area === a; }); });
   $("brainCount").textContent = notes.length + " notas · " + areasPresent.length + " áreas";
   let lg = "";
@@ -603,7 +1046,7 @@ function animatePulses(){
 
 /* ═══════════════════ CÓDIGO DE MEMÓRIA (importar / exportar) ═══════════════════ */
 function encodeMemory(){
-  const json = JSON.stringify({ v: 1, notes: notes, rel: rel });
+  const json = JSON.stringify({ v: 2, notes: notes, rel: rel, records: records, reminders: reminders.filter(function(r){ return !r.done; }) });
   const bytes = new TextEncoder().encode(json);
   let bin = "";
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
@@ -620,16 +1063,23 @@ function decodeMemory(code){
   if (!data || !Array.isArray(data.notes)) throw new Error("formato inválido");
   return {
     notes: data.notes.filter(function(n){ return n && n.id && n.title; }).map(function(n){
-      return { id: String(n.id), area: AREA[n.area] ? n.area : "meta", title: String(n.title), body: String(n.body || "") };
+      const o = { id: String(n.id), area: AREA[n.area] ? n.area : "meta", title: String(n.title), body: String(n.body || "") };
+      if (n.phone) o.phone = String(n.phone);
+      return o;
     }),
-    rel: Array.isArray(data.rel) ? data.rel.filter(function(p){ return Array.isArray(p) && p.length === 2; }) : []
+    rel: Array.isArray(data.rel) ? data.rel.filter(function(p){ return Array.isArray(p) && p.length === 2; }) : [],
+    records: Array.isArray(data.records) ? data.records.filter(function(r){ return r && r.id && REC_TYPES.indexOf(r.tipo) >= 0; }) : null,
+    reminders: Array.isArray(data.reminders) ? data.reminders.filter(function(r){ return r && r.id && r.due; }) : null
   };
 }
 function applyImported(mem){
   notes = mem.notes; rel = mem.rel;
-  saveNotes(); saveRel();
+  if (mem.records) records = mem.records;
+  if (mem.reminders) reminders = mem.reminders;
+  saveNotes(); saveRel(); saveRecords(); saveReminders();
   renderBrain();
 }
+let pendingImportMsg = "";
 function importFromHash(){
   const h = location.hash || "";
   if (h.indexOf("#m=") !== 0) return;
@@ -639,17 +1089,16 @@ function importFromHash(){
   } catch(e) {
     pendingImportMsg = "Código de memória inválido no link.";
   }
-  // remove o código da barra de endereço (não fica no histórico visível)
-  try { history.replaceState(null, "", location.pathname + location.search); } catch(e){ location.hash = ""; }
+  // remove o código da barra de endereço
+  try { window.history.replaceState(null, "", location.pathname + location.search); } catch(e){ location.hash = ""; }
 }
-let pendingImportMsg = "";
 let memMode = "import";
 function openMem(mode){
   memMode = mode;
   $("memMsg").textContent = "";
   if (mode === "export") {
     $("memTitle").textContent = "EXPORTAR MEMÓRIA (BACKUP)";
-    $("memLabel").textContent = "GUARDE ESTE CÓDIGO EM LUGAR SEGURO — ELE CONTÉM SUAS NOTAS";
+    $("memLabel").textContent = "GUARDE ESTE CÓDIGO EM LUGAR SEGURO — ELE CONTÉM SUAS NOTAS E REGISTROS";
     $("memCode").value = encodeMemory();
     $("memCode").readOnly = true;
     $("memOk").textContent = "Copiar";
@@ -690,6 +1139,7 @@ function openEditor(id){
   $("fTitle").value = n ? n.title : "";
   $("fArea").value = n ? n.area : "metas";
   $("fBody").value = n ? n.body : "";
+  $("fPhone").value = n && n.phone ? n.phone : "";
   $("fDelete").classList.toggle("hidden", !n);
   $("modalBg").classList.remove("hidden");
   setTimeout(function(){ $("fTitle").focus(); }, 50);
@@ -699,15 +1149,13 @@ function saveEditor(){
   const title = $("fTitle").value.trim();
   const area = $("fArea").value;
   const body = $("fBody").value.trim();
+  const phone = $("fPhone").value.trim();
   if (!title) { $("fTitle").focus(); return; }
-  let id = editingId;
-  if (id) {
-    const n = notes.find(function(x){ return x.id === id; });
-    if (n) { n.title = title; n.area = area; n.body = body; }
-  } else {
-    id = newId();
-    notes.push({ id: id, area: area, title: title, body: body });
-  }
+  let id = editingId, n;
+  if (id) n = notes.find(function(x){ return x.id === id; });
+  if (!n) { id = newId(); n = { id: id }; notes.push(n); }
+  n.title = title; n.area = area; n.body = body;
+  if (phone) n.phone = phone; else delete n.phone;
   saveNotes(); closeEditor(); renderBrain(id);
 }
 function deleteEditor(){
@@ -733,7 +1181,7 @@ function applyMemory(text){
     clean = clean.slice(0, m.index) + clean.slice(m.index + m[0].length);
   }
   if (lastId) { saveNotes(); renderBrain(lastId); }
-  return clean.replace(/\n{2,}/g, "\n").trim();
+  return clean.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /* ═══════════════════ UI DE ESTADO ═══════════════════ */
@@ -772,7 +1220,7 @@ function showMicAlert(msg, code){
   }).catch(function(){});
 }
 
-/* ═══════════════════ ÁUDIO: BIP DE ATIVAÇÃO ═══════════════════ */
+/* ═══════════════════ ÁUDIO: BIP ═══════════════════ */
 let audioCtx = null;
 function beep(){
   try {
@@ -815,12 +1263,12 @@ let speakToken = 0, finishSpeak = null;
 const utterRefs = [];
 function speak(text){
   return new Promise(function(resolve){
-    const clean = String(text).replace(/[*#_`>]/g, "").trim();
+    const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*#_`>|]/g, "").trim();
     if (!clean || !("speechSynthesis" in window)) { resolve(); return; }
     const myTok = ++speakToken;
     speechSynthesis.cancel();
     if (!voice) loadVoices();
-    const parts = clean.match(/[^.!?…]+[.!?…]*/g) || [clean];
+    const parts = clean.match(/[^.!?…\n]+[.!?…]*/g) || [clean];
     let i = 0, done = false;
     const finish = function(){
       if (done) return; done = true; clearTimeout(guard);
@@ -850,6 +1298,15 @@ function stopSpeaking(){
   speakToken++;
   if ("speechSynthesis" in window) speechSynthesis.cancel();
   if (finishSpeak) finishSpeak();
+}
+// respostas longas: fala só o começo, o resto fica na tela
+function speechVersion(text){
+  if (text.length <= 650) return text;
+  const sents = text.replace(/\n+/g, " ").match(/[^.!?…]+[.!?…]+/g) || [text.slice(0, 300)];
+  let out = "";
+  for (let i = 0; i < sents.length && (out + sents[i]).length < 420; i++) out += sents[i];
+  if (!out) out = sents[0];
+  return out.trim() + " Deixei o restante na tela, " + CONFIG.address + ".";
 }
 
 /* ═══════════════════ STT (SpeechRecognition) ═══════════════════ */
@@ -903,9 +1360,8 @@ function initRecognition(){
       wantListening = false; updateMicBtn();
       showMicAlert(micErrorText("not-allowed"), "voz:" + e.error);
       refreshIdle();
-      speak("Senhor, o acesso ao microfone foi negado. Por favor, libere a permissão no navegador.").then(function(){ refreshIdle(); });
     } else if (e.error === "audio-capture") {
-      showMicAlert(micErrorText("audio-capture"));
+      showMicAlert(micErrorText("audio-capture"), "voz:audio-capture");
     } else if (e.error === "network") {
       $("status").textContent = "Falha de rede no reconhecimento de voz";
     }
@@ -944,8 +1400,7 @@ function handleHeard(raw){
   setAwake(true, 10000);
 }
 
-/* ═══════════════════ CÉREBRO (API Anthropic) ═══════════════════ */
-let history = [];
+/* ═══════════════════ CÉREBRO (API Anthropic + ferramentas) ═══════════════════ */
 function getKey(){ return (store.get("anthropic_key") || "").trim(); }
 function updateKeyState(){
   const k = getKey();
@@ -967,9 +1422,36 @@ function processCommand(text){
   ask(text);
 }
 
-async function say(text){
+async function say(text, spoken){
   $("himLine").textContent = text;
-  await speak(text);
+  $("himLine").scrollTop = 0;
+  await speak(spoken || text);
+}
+
+function callApi(key, messages){
+  return fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: CONFIG.model,
+      max_tokens: MAX_TOKENS,
+      system: [
+        { type: "text", text: STATIC_PROMPT, cache_control: { type: "ephemeral" } },
+        { type: "text", text: dynamicPrompt() }
+      ],
+      tools: toolList(),
+      messages: messages
+    })
+  });
+}
+function textOf(content){
+  return (content || []).filter(function(b){ return b && b.type === "text" && typeof b.text === "string"; })
+    .map(function(b){ return b.text; }).join("").trim();
 }
 
 let reqToken = 0;
@@ -977,7 +1459,7 @@ async function ask(userText){
   if (busy && !document.body.classList.contains("speaking")) { $("status").textContent = "Aguarde, ainda processando..."; return; }
   if (busy) stopSpeaking();
   const my = ++reqToken;
-  const setBusyOff = function(){ if (my === reqToken) setBusy(false); };
+  const setBusyOff = function(){ if (my === reqToken) { setBusy(false); pumpAnnounce(); } };
   setAwake(false);
   setBusy(true);
   const key = getKey();
@@ -988,69 +1470,86 @@ async function ask(userText){
     return;
   }
   setState("thinking", "Processando...");
-  history.push({ role: "user", content: userText });
-  if (history.length > 24) history = history.slice(history.length - 24);
-  while (history.length && history[0].role !== "user") history.shift();
-
-  let res;
-  try {
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        model: CONFIG.model,
-        max_tokens: 400,
-        system: buildSystemPrompt(),
-        messages: history
-      })
-    });
-  } catch (err) {
-    history.pop();
-    await say("Peço desculpas, senhor, mas não consegui me conectar ao servidor. Verifique sua conexão com a internet.");
-    setBusyOff();
-    return;
-  }
-
-  if (!res.ok) {
-    history.pop();
-    let detail = "";
-    try { const j = await res.json(); detail = (j && j.error && j.error.message) || ""; } catch(e){}
-    console.warn("Erro da API:", res.status, detail);
-    const msg = (res.status === 401 || res.status === 403)
-      ? "Senhor, a API recusou a chave de acesso. Por favor, verifique sua API key."
-      : "Senhor, a API retornou um erro " + res.status + ". Por favor, verifique sua chave e tente novamente.";
-    await say(msg);
-    setBusyOff();
-    return;
-  }
-
+  const turn = chatHistory.slice();
+  turn.push({ role: "user", content: userText });
+  const firstIdx = turn.length;
   let data = null;
-  try { data = await res.json(); } catch(e){}
-  let text = "";
-  if (data && Array.isArray(data.content)) {
-    text = data.content
-      .filter(function(b){ return b && b.type === "text" && typeof b.text === "string"; })
-      .map(function(b){ return b.text; }).join("\n").trim();
+
+  for (let step = 0; step < 8; step++) {
+    let res;
+    try { res = await callApi(key, turn); }
+    catch (err) {
+      await say("Peço desculpas, senhor, mas não consegui me conectar ao servidor. Verifique sua conexão com a internet.");
+      setBusyOff();
+      return;
+    }
+    if (!res.ok) {
+      let detail = "";
+      try { const j = await res.json(); detail = (j && j.error && j.error.message) || ""; } catch(e){}
+      console.warn("Erro da API:", res.status, detail);
+      if (res.status === 400 && webOn && /web_search|web_fetch|web search|web fetch/i.test(detail)) {
+        // pesquisa na web indisponível na conta → segue sem ela
+        webOn = false; webWarn = true;
+        step--; continue;
+      }
+      const msg = (res.status === 401 || res.status === 403)
+        ? "Senhor, a API recusou a chave de acesso. Por favor, verifique sua API key."
+        : res.status === 429 ? "Senhor, atingimos o limite de uso por instantes. Tente de novo em alguns segundos."
+        : res.status === 529 ? "Senhor, os servidores estão sobrecarregados agora. Tente de novo em instantes."
+        : "Senhor, a API retornou um erro " + res.status + ". Por favor, verifique sua chave e seus créditos.";
+      await say(msg);
+      setBusyOff();
+      return;
+    }
+    try { data = await res.json(); } catch(e){ data = null; }
+    if (!data || !Array.isArray(data.content)) break;
+    turn.push({ role: "assistant", content: data.content });
+    if (data.content.some(function(b){ return b.type === "server_tool_use"; })) setState("thinking", "Pesquisando na internet...");
+
+    if (data.stop_reason === "tool_use") {
+      const results = [];
+      data.content.forEach(function(b){
+        if (b.type !== "tool_use") return;
+        setState("thinking", TOOL_STATUS[b.name] || "Executando...");
+        let out;
+        try { out = runTool(b.name, b.input); } catch(err) { out = { ok: false, erro: String(err && err.message || err) }; }
+        results.push({ type: "tool_result", tool_use_id: b.id, content: JSON.stringify(out) });
+      });
+      turn.push({ role: "user", content: results });
+      setState("thinking", "Processando...");
+      continue;
+    }
+    if (data.stop_reason === "pause_turn") continue;
+    break;
   }
+
+  let text = data ? textOf(data.content) : "";
   if (!text) {
-    history.pop();
+    // junta o texto de todas as respostas do turno, se a última vier vazia
+    text = turn.slice(firstIdx).filter(function(m){ return m.role === "assistant"; })
+      .map(function(m){ return textOf(m.content); }).filter(Boolean).join("\n").trim();
+  }
+  if (data && data.stop_reason === "refusal") text = "Peço desculpas, senhor, mas não posso ajudar com esse pedido.";
+  if (!text) {
     await say("Peço desculpas, senhor, não obtive uma resposta desta vez. Pode repetir?");
     setBusyOff();
     return;
   }
 
-  const clean = applyMemory(text) || "Anotado, senhor.";
-  history.push({ role: "assistant", content: clean });
-  await say(clean);
+  let clean = applyMemory(text) || "Feito, senhor.";
+  if (webWarn) { clean += "\n\nObservação: a pesquisa na internet está desativada na sua conta da Anthropic; por isso respondi sem consultar a web."; webWarn = false; }
+  chatHistory.push({ role: "user", content: userText });
+  chatHistory.push({ role: "assistant", content: clean });
+  if (chatHistory.length > 30) chatHistory = chatHistory.slice(chatHistory.length - 30);
+  while (chatHistory.length && chatHistory[0].role !== "user") chatHistory.shift();
+  saveHistory();
+
+  await say(clean, speechVersion(clean));
   if (my !== reqToken) return;
   setBusy(false);
   // janela curta para continuar a conversa sem repetir a wake word
   if (wantListening && recSupported) setAwake(true, 7000);
+  pumpAnnounce();
 }
 
 /* ═══════════════════ MICROFONE / BOTÕES ═══════════════════ */
@@ -1063,17 +1562,22 @@ function toggleMic(){
   if (!recSupported) return;
   wantListening = !wantListening;
   updateMicBtn();
-  if (wantListening) { $("micAlert").classList.add("hidden"); safeStart(); }
+  if (wantListening) { hideMicAlert(); safeStart(); }
   else { setAwake(false); if (rec) { try { rec.abort(); } catch(e){} } }
   refreshIdle();
 }
 function orbClick(){
   if (busy) { stopSpeaking(); return; }
   if (!recSupported) { $("textIn").focus(); return; }
-  if (!wantListening) { wantListening = true; updateMicBtn(); $("micAlert").classList.add("hidden"); }
+  if (!wantListening) { wantListening = true; updateMicBtn(); hideMicAlert(); }
   safeStart();
   beep();
   setAwake(true, 10000);
+}
+function newConversation(){
+  chatHistory = []; saveHistory();
+  $("youLine").textContent = "—";
+  $("himLine").textContent = "Conversa reiniciada, " + CONFIG.address + ". Sua memória e seus registros continuam guardados.";
 }
 
 /* ═══════════════════ INICIALIZAÇÃO ═══════════════════ */
@@ -1089,13 +1593,14 @@ function fillAreaSelect(){
 }
 
 function activate(){
-  // Este clique é o gesto do usuário que libera áudio + microfone
+  // Este clique é o gesto do usuário que libera áudio + microfone + notificações
   try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
   loadVoices();
+  askNotifyPermission();
   $("activate").classList.add("fade");
   setTimeout(function(){ $("activate").classList.add("hidden"); }, 800);
   $("app").classList.remove("hidden");
-  requestAnimationFrame(function(){ $("app").classList.add("show"); renderBrain(); });
+  requestAnimationFrame(function(){ $("app").classList.add("show"); renderBrain(); renderRecs(); });
 
   initRecognition();
   if (recSupported && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -1107,9 +1612,12 @@ function activate(){
   const greeting = (pendingImportMsg ? pendingImportMsg + " " : "") + "Sistemas online. Estou ouvindo, " + CONFIG.address + ".";
   $("himLine").textContent = greeting;
   speak(greeting).then(function(){
+    appStarted = true;
     setBusy(false);
     if (recSupported && wantListening) setAwake(true, 10000);
+    checkReminders();
   });
+  setInterval(checkReminders, 10000);
 }
 
 function boot(){
@@ -1126,6 +1634,7 @@ function boot(){
   $("orb").addEventListener("click", orbClick);
   $("btnMic").addEventListener("click", toggleMic);
   $("btnStop").addEventListener("click", function(){ stopSpeaking(); });
+  $("btnNew").addEventListener("click", newConversation);
   $("textIn").addEventListener("keydown", function(e){
     if (e.key !== "Enter") return;
     const v = e.target.value.trim();
@@ -1144,12 +1653,14 @@ function boot(){
     const node = e.target.closest ? e.target.closest(".node") : null;
     if (node) openEditor(node.getAttribute("data-id"));
   });
+  $("recFilter").addEventListener("change", renderRecs);
+  $("recList").addEventListener("click", recsClick);
+  $("btnCsv").addEventListener("click", exportCsv);
   $("fSave").addEventListener("click", saveEditor);
   $("fCancel").addEventListener("click", closeEditor);
   $("fDelete").addEventListener("click", deleteEditor);
   $("modalBg").addEventListener("click", function(e){ if (e.target === $("modalBg")) closeEditor(); });
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") { closeEditor(); closeMem(); } });
-  window.addEventListener("resize", function(){ /* SVG escala via viewBox */ });
 
   requestAnimationFrame(animatePulses);
 
