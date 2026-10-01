@@ -762,9 +762,14 @@ function micErrorText(name){
   return "⚠ Microfone bloqueado. Verifique: (1) cadeado da barra de endereço → Microfone: Permitir; (2) Windows → Configurações → Privacidade e segurança → Microfone → ative 'Permitir que aplicativos da área de trabalho acessem o microfone'. Depois aperte F5. Enquanto isso, use o campo de texto.";
 }
 function hideMicAlert(){ $("micAlert").classList.add("hidden"); }
-function showMicAlert(msg){
+function showMicAlert(msg, code){
   const el = $("micAlert");
   el.textContent = msg; el.classList.remove("hidden");
+  if (!code || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  navigator.mediaDevices.enumerateDevices().then(function(list){
+    const mics = list.filter(function(d){ return d.kind === "audioinput"; }).length;
+    el.textContent = msg + "  [diagnóstico: " + code + " · microfones detectados: " + mics + "]";
+  }).catch(function(){});
 }
 
 /* ═══════════════════ ÁUDIO: BIP DE ATIVAÇÃO ═══════════════════ */
@@ -896,7 +901,7 @@ function initRecognition(){
   rec.onerror = function(e){
     if (e.error === "not-allowed" || e.error === "service-not-allowed") {
       wantListening = false; updateMicBtn();
-      showMicAlert(micErrorText("not-allowed"));
+      showMicAlert(micErrorText("not-allowed"), "voz:" + e.error);
       refreshIdle();
       speak("Senhor, o acesso ao microfone foi negado. Por favor, libere a permissão no navegador.").then(function(){ refreshIdle(); });
     } else if (e.error === "audio-capture") {
@@ -1096,7 +1101,7 @@ function activate(){
   if (recSupported && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(function(s){ s.getTracks().forEach(function(t){ t.stop(); }); })
-      .catch(function(err){ showMicAlert(micErrorText(err && err.name)); });
+      .catch(function(err){ showMicAlert(micErrorText(err && err.name), (err && err.name) || "erro"); });
   }
   setBusy(true);
   const greeting = (pendingImportMsg ? pendingImportMsg + " " : "") + "Sistemas online. Estou ouvindo, " + CONFIG.address + ".";
