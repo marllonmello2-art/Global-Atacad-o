@@ -410,6 +410,8 @@ const REC_TYPES = ["gasto","receita","tarefa","diario","peso","treino","ideia","
 const REC_LABEL = { gasto:"Gasto", receita:"Receita", tarefa:"Tarefa", diario:"Diário", peso:"Peso", treino:"Treino", ideia:"Ideia", compra:"Compra" };
 const REC_COLOR = { gasto:"#ff5547", receita:"#10b981", tarefa:"#fbbf24", diario:"#8b7cff", peso:"#2dd4ff", treino:"#10b981", ideia:"#ec4899", compra:"#f7931a" };
 const MAX_TOKENS = 1500;
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
 const TZ = (function(){ try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Sao_Paulo"; } catch(e){ return "America/Sao_Paulo"; } })();
 
 /* ═══════════════════ UTILIDADES ═══════════════════ */
@@ -659,7 +661,8 @@ function gcalFmt(s, addHours){
 function addAction(label, url){
   const box = $("actions");
   const a = document.createElement("a");
-  a.className = "act"; a.href = url; a.target = "_blank"; a.rel = "noopener";
+  a.className = "act"; a.href = url;
+  if (/^https?:/i.test(url)) { a.target = "_blank"; a.rel = "noopener"; }
   a.textContent = "▶ " + label;
   box.insertBefore(a, box.firstChild);
   while (box.children.length > 3) box.removeChild(box.lastChild);
@@ -1433,10 +1436,20 @@ function localTimer(text){
     : plural(Math.round(mins * 10) / 10, "minuto", "minutos");
   runTool("criar_lembrete", { texto: "o timer de " + label + " terminou", em_minutos: mins });
   $("recFilter").value = "lembretes"; renderRecs();
+  // também oferece o timer no relógio do próprio celular (toca mesmo com a tela bloqueada)
+  const secs = Math.max(1, Math.round(mins * 60));
+  let extra = "";
+  if (IS_IOS) {
+    addAction("Iniciar no Relógio do iPhone · " + label, "shortcuts://run-shortcut?name=" + encodeURIComponent("Jarvis Timer") + "&input=text&text=" + secs);
+    extra = " Toque no botão para iniciar também no relógio do iPhone.";
+  } else if (IS_ANDROID) {
+    addAction("Iniciar no relógio do celular · " + label, "intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=" + secs + ";S.android.intent.extra.alarm.MESSAGE=" + encodeURIComponent(CONFIG.name) + ";B.android.intent.extra.alarm.SKIP_UI=true;end");
+    extra = " Toque no botão para iniciar também no relógio do celular.";
+  }
   if (busy) stopSpeaking();
   const my = ++reqToken;
   setAwake(false); setBusy(true);
-  say("Timer de " + label + " iniciado, " + CONFIG.address + ".").then(function(){ if (my === reqToken) { setBusy(false); pumpAnnounce(); } });
+  say("Timer de " + label + " iniciado, " + CONFIG.address + "." + extra).then(function(){ if (my === reqToken) { setBusy(false); pumpAnnounce(); } });
   return true;
 }
 
