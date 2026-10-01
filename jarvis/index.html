@@ -278,6 +278,8 @@ body.thinking .status .dot{background:var(--violet);box-shadow:0 0 10px var(--vi
       <div class="right">
         <span class="count" id="brainCount">0 notas · 0 áreas</span>
         <button class="btn" id="btnAdd" title="Nova nota">+</button>
+        <button class="btn" id="btnImport" title="Importar código de memória">📥</button>
+        <button class="btn" id="btnExport" title="Exportar backup da memória">📤</button>
         <button class="btn" id="btnReload" title="Recarregar grafo">⟳</button>
       </div>
     </div>
@@ -301,6 +303,21 @@ body.thinking .status .dot{background:var(--violet);box-shadow:0 0 10px var(--vi
       <span class="spacer"></span>
       <button class="btn off" id="fCancel">Cancelar</button>
       <button class="btn" id="fSave">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL — importar / exportar memória -->
+<div class="modal-bg hidden" id="memBg">
+  <div class="modal">
+    <h3 id="memTitle">IMPORTAR MEMÓRIA</h3>
+    <label for="memCode" id="memLabel">COLE AQUI SEU CÓDIGO DE MEMÓRIA (JARVIS1:...)</label>
+    <textarea id="memCode" spellcheck="false" style="font-family:var(--mono);font-size:12px;min-height:150px"></textarea>
+    <div class="row">
+      <span class="keystate" id="memMsg"></span>
+      <span class="spacer"></span>
+      <button class="btn off" id="memCancel">Fechar</button>
+      <button class="btn" id="memOk">Importar</button>
     </div>
   </div>
 </div>
@@ -329,86 +346,12 @@ const AREA = {
   meta:        { label: "Você",        color: "#8a90a6" }
 };
 
-const NOTES = [
-  { id: "marlon", area: "meta", title: "Marlon",
-    body: "Marlon Silva de Mello, 26 anos, mora em Duque de Caxias (RJ). Tesoureiro geral e líder da área de ensino na igreja. Pratica judô e joga futebol." },
+// VERSÃO LIMPA: nenhuma informação pessoal fica no código publicado.
+// As notas e conexões chegam pelo "código de memória" (link #m=... ou botão 📥)
+// e ficam guardadas somente no navegador (localStorage "jarvis_notes" / "jarvis_rel").
+const NOTES = [];
 
-  { id: "puc", area: "metas", title: "PUC-Rio",
-    body: "Meta de curto prazo (3 a 6 meses): passar no vestibular da PUC-Rio para cursar Teologia." },
-  { id: "faixa", area: "metas", title: "Faixa Amarela",
-    body: "Meta de curto prazo: ser aprovado no exame de faixa amarela do judô." },
-  { id: "visao", area: "metas", title: "Visão 3 Anos",
-    body: "Longo prazo (1 a 3 anos): limpar o nome, estar muito melhor financeiramente e ganhar acima de R$ 100 mil por mês." },
-
-  { id: "tesouraria", area: "trabalho", title: "Tesouraria",
-    body: "Trabalha como tesoureiro geral da igreja. É a principal ocupação atual." },
-  { id: "ensino", area: "trabalho", title: "Ensino",
-    body: "É líder da área de ensino na igreja." },
-
-  { id: "shopee", area: "projetos", title: "Loja Shopee",
-    body: "Loja na Shopee de produtos variados. Já está ativa, mas ainda rende pouco; precisa crescer." },
-  { id: "youtube", area: "projetos", title: "Canal YouTube",
-    body: "Canal no YouTube de fundos musicais." },
-  { id: "site", area: "projetos", title: "Site Notícias",
-    body: "Site de notícias, curiosidades e afins. Já foi criado, mas ainda não está no ar." },
-
-  { id: "dividas", area: "financas", title: "Dívidas",
-    body: "Objetivo: quitar todas as dívidas e limpar o nome." },
-  { id: "investir", area: "financas", title: "Investir",
-    body: "Objetivo: investir para gerar mais dinheiro e multiplicar a renda." },
-  { id: "casacarro", area: "financas", title: "Casa e Carro",
-    body: "Objetivo: comprar uma casa legal e um carro bom." },
-  { id: "generosidade", area: "financas", title: "Generosidade",
-    body: "Objetivo: ter condições financeiras de ajudar pessoas que precisam." },
-
-  { id: "teologia", area: "aprendizado", title: "Teologia",
-    body: "Estuda teologia e lê vários livros de teologia acadêmica." },
-  { id: "judo", area: "aprendizado", title: "Judô",
-    body: "Estuda judô: técnicas, teoria e preparação para o exame de faixa." },
-  { id: "ia", area: "aprendizado", title: "IA",
-    body: "Estuda um pouco sobre inteligência artificial." },
-
-  { id: "peso", area: "saude", title: "Peso",
-    body: "Pesa cerca de 86 kg com aproximadamente 1,75 m de altura. Quer perder peso." },
-  { id: "alimentacao", area: "saude", title: "Alimentação",
-    body: "Alimentação irregular: tem comido miojo e lanches com frequência. Precisa melhorar." },
-  { id: "sono", area: "saude", title: "Sono",
-    body: "O sono não está regulado; precisa criar uma rotina de sono." },
-  { id: "esportes", area: "saude", title: "Esportes",
-    body: "Pratica judô e joga futebol." },
-
-  { id: "evellyn", area: "relacoes", title: "Evellyn",
-    body: "Esposa; estão em processo de separação. Assunto sensível: tratar com respeito e discrição." },
-  { id: "analice", area: "relacoes", title: "Analice",
-    body: "Filha do Marlon." },
-  { id: "jean", area: "relacoes", title: "Jean",
-    body: "Irmão do Marlon." },
-  { id: "renan", area: "relacoes", title: "Renan",
-    body: "Pastor e amigo." },
-  { id: "emerson", area: "relacoes", title: "Emerson",
-    body: "Pastor e amigo." },
-  { id: "ellen", area: "relacoes", title: "Ellen",
-    body: "Pastora e amiga." },
-  { id: "carlos", area: "relacoes", title: "Carlos",
-    body: "Pastor e amigo." }
-];
-
-const REL = [
-  ["marlon","visao"],["marlon","puc"],["marlon","faixa"],["marlon","tesouraria"],["marlon","ensino"],
-  ["marlon","analice"],["marlon","jean"],["marlon","esportes"],["marlon","evellyn"],
-  ["visao","dividas"],["visao","investir"],["visao","casacarro"],["visao","generosidade"],
-  ["visao","shopee"],["visao","youtube"],["visao","site"],["visao","puc"],["visao","faixa"],["visao","peso"],
-  ["puc","teologia"],["puc","ensino"],["puc","sono"],["puc","renan"],["puc","emerson"],
-  ["faixa","judo"],["faixa","esportes"],["faixa","peso"],
-  ["tesouraria","dividas"],["tesouraria","renan"],["tesouraria","carlos"],["tesouraria","ellen"],
-  ["ensino","teologia"],["ensino","emerson"],["ensino","ellen"],
-  ["shopee","investir"],["shopee","dividas"],["shopee","ia"],["youtube","ia"],["site","ia"],["youtube","site"],
-  ["dividas","investir"],["investir","casacarro"],["generosidade","casacarro"],["generosidade","renan"],
-  ["teologia","carlos"],["judo","esportes"],
-  ["peso","alimentacao"],["peso","sono"],["peso","esportes"],["alimentacao","sono"],
-  ["evellyn","analice"],["analice","casacarro"],
-  ["renan","emerson"],["emerson","ellen"],["ellen","carlos"],["carlos","renan"]
-];
+const REL = [];
 
 /* ═══════════════════ UTILIDADES ═══════════════════ */
 const $ = (id) => document.getElementById(id);
@@ -431,6 +374,15 @@ function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
 
 /* ═══════════════════ ESTADO DAS NOTAS ═══════════════════ */
 let notes = loadNotes();
+let rel = loadRel();
+function loadRel(){
+  try {
+    const arr = JSON.parse(store.get("jarvis_rel") || "null");
+    if (Array.isArray(arr)) return arr.filter(function(p){ return Array.isArray(p) && p.length === 2; });
+  } catch(e){}
+  return REL.slice();
+}
+function saveRel(){ store.set("jarvis_rel", JSON.stringify(rel)); }
 function loadNotes(){
   const raw = store.get("jarvis_notes");
   if (raw) {
@@ -453,11 +405,11 @@ function newId(){ return "n" + Date.now().toString(36) + Math.random().toString(
 /* ═══════════════════ SYSTEM PROMPT ═══════════════════ */
 function buildSystemPrompt(){
   const identity =
-    "Você é " + CONFIG.name + ", o assistente pessoal de voz do Marlon. Sua personalidade é de um mordomo britânico formal: " +
+    "Você é " + CONFIG.name + ", o assistente pessoal de voz do usuário. Sua personalidade é de um mordomo britânico formal: " +
     "educado, elegante, leal, preciso e com um humor seco e sutil. Trate o usuário SEMPRE por \"" + CONFIG.address + "\". " +
     "Você conhece profundamente a vida dele pelo Second Brain abaixo e usa esse contexto para personalizar cada resposta, " +
     "conectando conselhos às metas, projetos, finanças, saúde e relações dele quando fizer sentido. " +
-    "Em temas sensíveis (como a separação), seja respeitoso, discreto e acolhedor.";
+    "Em temas sensíveis da vida pessoal, seja respeitoso, discreto e acolhedor.";
   const rules =
     "REGRAS DE RESPOSTA: responda sempre em português do Brasil, em 2 a 4 frases curtas, naturais para serem FALADAS em voz alta. " +
     "Nunca use emojis, markdown, asteriscos, listas, títulos ou símbolos especiais. Seja direto e útil. " +
@@ -465,6 +417,7 @@ function buildSystemPrompt(){
   const groups = {};
   notes.forEach(function(n){ (groups[n.area] = groups[n.area] || []).push(n); });
   let brain = "SECOND BRAIN (contexto completo e atualizado da vida do usuário):\n";
+  if (!notes.length) brain += "(vazio: ainda não há notas; conheça o usuário conversando e salve o que aprender)\n";
   Object.keys(AREA).forEach(function(a){
     if (!groups[a]) return;
     brain += "\n## " + AREA[a].label + " (" + a + ")\n";
@@ -496,15 +449,19 @@ function computeEdges(){
     if (seen.has(k)) return;
     seen.add(k); out.push([a,b]);
   }
-  REL.forEach(function(p){ add(p[0], p[1]); });
+  rel.forEach(function(p){ add(p[0], p[1]); });
   // notas novas (fora do REL): liga à 1ª nota da mesma área e ao hub de metas
-  const linked = new Set(); out.forEach(function(p){ linked.add(p[0]); linked.add(p[1]); });
+  const linked = new Set(), degree = {};
+  out.forEach(function(p){ linked.add(p[0]); linked.add(p[1]); degree[p[0]] = (degree[p[0]]||0)+1; degree[p[1]] = (degree[p[1]]||0)+1; });
+  // hub = nota mais conectada (ou a 1ª nota de metas)
+  let hub = null, best = -1;
+  Object.keys(degree).forEach(function(id){ if (degree[id] > best) { best = degree[id]; hub = id; } });
+  if (!hub) { const m = notes.find(function(n){ return n.area === "metas"; }) || notes[0]; hub = m ? m.id : null; }
   notes.forEach(function(n){
     if (linked.has(n.id)) return;
     const peer = notes.find(function(m){ return m.area === n.area && m.id !== n.id; });
     if (peer) add(n.id, peer.id);
-    const hub = ids.has("visao") ? "visao" : (ids.has("marlon") ? "marlon" : null);
-    if (hub) add(n.id, hub);
+    if (hub && hub !== n.id) add(n.id, hub);
   });
   return out;
 }
@@ -587,7 +544,9 @@ function renderBrain(flashId){
   for (let i = 0; i < PULSE_COUNT; i++) pulsesSvg += '<circle r="3.2" fill="#ffffff" filter="url(#pglow)" opacity="0" cx="-20" cy="-20"/>';
   pulsesSvg += '</g>';
 
-  const content = defs + '<g>' + rays + '</g><g>' + edges + '</g>' + core + pulsesSvg + '<g>' + nodes + '</g>';
+  const empty = notes.length ? '' :
+    '<text x="' + CX + '" y="' + (CY + 92) + '" text-anchor="middle" class="lbl" style="font-size:17px">Memória vazia · toque em 📥 para importar seu código</text>';
+  const content = defs + '<g>' + rays + '</g><g>' + edges + '</g>' + core + empty + pulsesSvg + '<g>' + nodes + '</g>';
   const container = $("graph");
   // CRÍTICO: innerHTML na DIV contêiner (nunca no <svg>) → namespace SVG correto em Safari/webviews
   container.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Grafo do Second Brain">' + content + '</svg>';
@@ -640,6 +599,86 @@ function animatePulses(){
     }
   }
   requestAnimationFrame(animatePulses);
+}
+
+/* ═══════════════════ CÓDIGO DE MEMÓRIA (importar / exportar) ═══════════════════ */
+function encodeMemory(){
+  const json = JSON.stringify({ v: 1, notes: notes, rel: rel });
+  const bytes = new TextEncoder().encode(json);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return "JARVIS1:" + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function decodeMemory(code){
+  let b64 = String(code).trim().replace(/^#?m=/, "").replace(/^JARVIS1:/, "").replace(/\s+/g, "");
+  b64 = b64.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) b64 += "=";
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const data = JSON.parse(new TextDecoder().decode(bytes));
+  if (!data || !Array.isArray(data.notes)) throw new Error("formato inválido");
+  return {
+    notes: data.notes.filter(function(n){ return n && n.id && n.title; }).map(function(n){
+      return { id: String(n.id), area: AREA[n.area] ? n.area : "meta", title: String(n.title), body: String(n.body || "") };
+    }),
+    rel: Array.isArray(data.rel) ? data.rel.filter(function(p){ return Array.isArray(p) && p.length === 2; }) : []
+  };
+}
+function applyImported(mem){
+  notes = mem.notes; rel = mem.rel;
+  saveNotes(); saveRel();
+  renderBrain();
+}
+function importFromHash(){
+  const h = location.hash || "";
+  if (h.indexOf("#m=") !== 0) return;
+  try {
+    applyImported(decodeMemory(h));
+    pendingImportMsg = "Memória sincronizada: " + notes.length + " notas carregadas.";
+  } catch(e) {
+    pendingImportMsg = "Código de memória inválido no link.";
+  }
+  // remove o código da barra de endereço (não fica no histórico visível)
+  try { history.replaceState(null, "", location.pathname + location.search); } catch(e){ location.hash = ""; }
+}
+let pendingImportMsg = "";
+let memMode = "import";
+function openMem(mode){
+  memMode = mode;
+  $("memMsg").textContent = "";
+  if (mode === "export") {
+    $("memTitle").textContent = "EXPORTAR MEMÓRIA (BACKUP)";
+    $("memLabel").textContent = "GUARDE ESTE CÓDIGO EM LUGAR SEGURO — ELE CONTÉM SUAS NOTAS";
+    $("memCode").value = encodeMemory();
+    $("memCode").readOnly = true;
+    $("memOk").textContent = "Copiar";
+  } else {
+    $("memTitle").textContent = "IMPORTAR MEMÓRIA";
+    $("memLabel").textContent = "COLE AQUI SEU CÓDIGO DE MEMÓRIA (JARVIS1:...)";
+    $("memCode").value = "";
+    $("memCode").readOnly = false;
+    $("memOk").textContent = "Importar";
+  }
+  $("memBg").classList.remove("hidden");
+  setTimeout(function(){ $("memCode").focus(); if (mode === "export") $("memCode").select(); }, 50);
+}
+function closeMem(){ $("memBg").classList.add("hidden"); }
+function memOk(){
+  if (memMode === "export") {
+    const v = $("memCode").value;
+    const done = function(){ $("memMsg").textContent = "✓ copiado"; $("memMsg").classList.add("ok"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, function(){ $("memCode").select(); document.execCommand("copy"); done(); });
+    else { $("memCode").select(); document.execCommand("copy"); done(); }
+    return;
+  }
+  let mem;
+  try { mem = decodeMemory($("memCode").value); }
+  catch(e) { $("memMsg").textContent = "Código inválido. Confira se copiou inteiro."; $("memMsg").classList.remove("ok"); return; }
+  if (notes.length && !confirm("Substituir as " + notes.length + " notas atuais por " + mem.notes.length + " notas do código?")) return;
+  applyImported(mem);
+  closeMem();
+  $("himLine").textContent = "Memória sincronizada, " + CONFIG.address + ". " + notes.length + " notas carregadas.";
 }
 
 /* ═══════════════════ EDITOR DE NOTAS ═══════════════════ */
@@ -1052,7 +1091,7 @@ function activate(){
       });
   }
   setBusy(true);
-  const greeting = "Sistemas online. Estou ouvindo, " + CONFIG.address + ".";
+  const greeting = (pendingImportMsg ? pendingImportMsg + " " : "") + "Sistemas online. Estou ouvindo, " + CONFIG.address + ".";
   $("himLine").textContent = greeting;
   speak(greeting).then(function(){
     setBusy(false);
@@ -1061,6 +1100,7 @@ function activate(){
 }
 
 function boot(){
+  importFromHash();
   applyNames();
   fillAreaSelect();
   updateKeyState();
@@ -1081,7 +1121,12 @@ function boot(){
     processCommand(v);
   });
   $("btnAdd").addEventListener("click", function(){ openEditor(null); });
-  $("btnReload").addEventListener("click", function(){ notes = loadNotes(); renderBrain(); });
+  $("btnReload").addEventListener("click", function(){ notes = loadNotes(); rel = loadRel(); renderBrain(); });
+  $("btnImport").addEventListener("click", function(){ openMem("import"); });
+  $("btnExport").addEventListener("click", function(){ openMem("export"); });
+  $("memOk").addEventListener("click", memOk);
+  $("memCancel").addEventListener("click", closeMem);
+  $("memBg").addEventListener("click", function(e){ if (e.target === $("memBg")) closeMem(); });
   $("graph").addEventListener("click", function(e){
     const node = e.target.closest ? e.target.closest(".node") : null;
     if (node) openEditor(node.getAttribute("data-id"));
@@ -1090,7 +1135,7 @@ function boot(){
   $("fCancel").addEventListener("click", closeEditor);
   $("fDelete").addEventListener("click", deleteEditor);
   $("modalBg").addEventListener("click", function(e){ if (e.target === $("modalBg")) closeEditor(); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeEditor(); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape") { closeEditor(); closeMem(); } });
   window.addEventListener("resize", function(){ /* SVG escala via viewBox */ });
 
   requestAnimationFrame(animatePulses);
